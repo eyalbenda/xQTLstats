@@ -1,0 +1,3 @@
+useDynLib(xQTLstats)
+importFrom(Rcpp, evalCpp)
+exportPattern("^[[:alpha:]]+")
