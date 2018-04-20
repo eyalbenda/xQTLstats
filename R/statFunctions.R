@@ -45,7 +45,7 @@ smoothQTLwrap = function(G,Map,Kern="kern",W=20)
   return(Gsmoothed)
 }
 #Your responsibility to run per chrom
-Gsmooth = function(G,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},map,W=20)
+Gsmooth = function(G,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},map,W=25)
 {
   if(length(G)!=length(map))
     stop("Length of G statistic vector must be the same as length of map vector")

@@ -1,6 +1,6 @@
 #import stats
 
-gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},W=20,lim= 0.9)
+gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},W=25,lim= 0.9)
 {
   if(length(geneticMap)!=length(splitVar))
   {

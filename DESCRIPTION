@@ -1,7 +1,7 @@
 Package: xQTLstats
 Type: Package
 Title: Statistics for elegans xQTL
-Version: 1.1
+Version: 1.11
 Date: 2017-10-06
 Author: Eyal Ben David
 Maintainer: Eyal Ben david <ebd@g.ucla.edu>
