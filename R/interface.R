@@ -1,5 +1,14 @@
 #import stats
-
+generateLen = function(vec,filt)
+{
+  if(length(vec)!=sum(!filt))
+  {
+    stop("Wrong lengths detected")
+  }
+  out = rep(NA,length(filt))
+  out[!filt] = vec
+  out
+}
 gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},W=25,lim= 0.9)
 {
   if(length(geneticMap)!=length(splitVar))
@@ -21,6 +30,15 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
   }
   n2 = bulkA[,1]
   n4 = bulkA[,2]
+  filt = getq(n2,n4)
+  filteredOut = filt>=lim | filt<=1-lim
+  print(sprintf("Removed %s variants based on allele frequency criterion",sum(filteredOut)))
+  n2 = n2[!filteredOut]
+  n4 = n4[!filteredOut]
+  geneticMapOut = geneticMap
+  geneticMap = geneticMap[!filteredOut]
+  splitVarOut = splitVar
+  splitVar = splitVar[!filteredOut]
   GstatA = Gstat(n2,n4)
   if(any(is.na(GstatA)))
   {
@@ -35,12 +53,14 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
   }
   paramA = getPars(GsmoothA)
   res = list()
-  res["GsmoothA"] = list(GsmoothA)
+  res["GsmoothA"] = list(generateLen(GsmoothA,filteredOut))
   res["paramA"] = list(paramA)
-  res["GstatA"] = list(GstatA)
-  res["pvalA"] = list(stats::plnorm(GsmoothA,meanlog = paramA[1],sdlog = paramA[2],lower.tail = F))
+  res["GstatA"] = list(generateLen(GstatA,filteredOut))
+  res["pvalA"] = list(generateLen(stats::plnorm(GsmoothA,meanlog = paramA[1],sdlog = paramA[2],lower.tail = F),filteredOut))
   if(!is.null(bulkB))
   {
+    n1 = n1[!filteredOut]
+    n3 = n3[!filteredOut]
     if(getDistortion)
     {
       qRawA = getq(n2,n4)
@@ -52,8 +72,8 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
         qSmoothA = c(qSmoothA,smoothQTL(qRawA[splitVar==v],geneticMap[splitVar==v],Kern="kern",W = W))
         qSmoothB = c(qSmoothB,smoothQTL(qRawB[splitVar==v],geneticMap[splitVar==v],Kern="kern",W = W)) 
       }
-      res["qSmoothA"] = list(qSmoothA)
-      res["qSmoothB"] = list(qSmoothB)
+      res["qSmoothA"] = list(generateLen(qSmoothA,filteredOut))
+      res["qSmoothB"] = list(generateLen(qSmoothB,filteredOut))
     }
     else
     {
@@ -65,20 +85,15 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
     {
       GsmoothB = c(GsmoothB,smoothQTL(G = GstatB[splitVar==v],Map = geneticMap[splitVar==v],Kern = "kern",W = W))
     }
-    filt = qSmoothA<lim&qSmoothA>(1-lim)
-    paramB = getPars(GsmoothB[filt])
+    paramB = getPars(GsmoothB)
     pvalB = stats::plnorm(GsmoothB,meanlog = paramB[1],sdlog = paramB[2],lower.tail = F)
-    res["removed"] = list(which(!filt))
-    print(sprintf("Removed %d SNPs from the analysis because they did not pass filter",sum(!filt)))
-    GstatB[!filt] = NA
-    GsmoothB[!filt] = NA
-    pvalB[!filt] = NA
-    res["GstatB"] = list(GstatB)
-    res["GsmoothB"] = list(GsmoothB)
+    res["removed"] = list(which(filteredOut))
+    res["GstatB"] = list(generateLen(GstatB,filteredOut))
+    res["GsmoothB"] = list(generateLen(GsmoothB,filteredOut))
     res["paramB"] = list(paramB)
-    res["pvalB"] = list(pvalB)
-    res["geneticMap"] = list(geneticMap)
-    res["splitVar"] = list(splitVar)
+    res["pvalB"] = list(generateLen(pvalB,filteredOut))
+    res["geneticMap"] = list(geneticMapOut)
+    res["splitVar"] = list(splitVarOut)
   }
   return(res)
 }
