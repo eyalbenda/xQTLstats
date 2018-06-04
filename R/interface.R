@@ -1,4 +1,6 @@
 #import stats
+
+
 generateLen = function(vec,filt)
 {
   if(length(vec)!=sum(!filt))
@@ -9,7 +11,34 @@ generateLen = function(vec,filt)
   out[!filt] = vec
   out
 }
-gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},W=25,lim= 0.9)
+
+#' Title Run X-QTL analysis
+#'
+#' @param bulkA A two column matrix with the allele counts in the low/control group 
+#' @param bulkB A two column matrix with the allele counts in the high/treatment group 
+#' @param geneticMap A vector of the genetic distances. All chromosomes are combined into one vector, and within each chromosome the values should monotonically increase. The function is compatible with the genetic map vector produced by r/qtl. has to be the same length as the row number of bulkA and bulkB
+#' @param splitVar A vector used to split the genetic map and the allele counts to chromosomes. Has to be the same length as the row number of bulkA and bulkB
+#' @param getDistortion Should segregration distortion be calculated from the data? If FALSE, X-QTL will run assuming baseline allele frequencies are all 0.5. 
+#' @param kern The kernel function for the smoother. This is currently a placeholder since the function uses a C++ implementation of the smoother with the kernel baked in.
+#' @param W The window size for the smoother. When smoothing the value for an SNV, a window of size W will be taken around it. See the Magwene et al 2011 paper for discussion of values. Defaults to 25, the low bound of the values they recommend 
+#' @param lim A filter for SNVs which show distortion. This is calculated based on the low/control group. The G statistic becomes highly unstable when considering SNVs that are nearly fixed, so they are filtered out.
+#'
+#' @return
+#' A list with the following values:
+#' GstatA: The G statistic for the control/low group (compared to a baseline of 0.5/0.5). Can be used to determine segregation distortion in the baseline
+#' GstatB: The G statistic for the high/treatment group (compared to the control group). This is the statistic used for the X-QTL
+#' GsmoothA: The smoothed G statistic for the control/low group. 
+#' GsmoothB: The smoothed G statistic for the treatment/high group. Used directly to calculate P-values.
+#' PvalA: P-values for segregation distortion in the baseline. Beware! If large parts of the genome show distortion (as in C. elegans) This will not work, since it derives the null distribution robustly from the values themselves.
+#' PvalB: XQTL P-values.
+#' qSmoothA: The smoothed allele frequencies in the control/low group. Can be useful to observe segregation distortion in the baseline
+#' qSmoothB: The smoothed allele frequences in the treatment/high group. Together with qSmoothA, can be used to determine direction of observed QTL
+#' geneticMap: The genetic map supplied to the function. This is returned for convenience/sanity check
+#' splitVar: The chromosome vector supplied to the function. This is returned for convenience/sanity check
+#' @export
+#'
+#' @examples
+gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},W=25,lim= 0.99)
 {
   if(length(geneticMap)!=length(splitVar))
   {
@@ -49,7 +78,7 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
   for(v in unique(splitVar))
   {
     curInd= splitVar==v
-    GsmoothA = c(GsmoothA,smoothQTL(GstatA[curInd],geneticMap[curInd],Kern="kern",W = W))
+    GsmoothA = c(GsmoothA,smoothQTL(GstatA[curInd],geneticMap[curInd],W = W))
   }
   paramA = getPars(GsmoothA)
   res = list()
@@ -69,8 +98,8 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
       qSmoothB = NULL
       for(v in unique(splitVar))
       {
-        qSmoothA = c(qSmoothA,smoothQTL(qRawA[splitVar==v],geneticMap[splitVar==v],Kern="kern",W = W))
-        qSmoothB = c(qSmoothB,smoothQTL(qRawB[splitVar==v],geneticMap[splitVar==v],Kern="kern",W = W)) 
+        qSmoothA = c(qSmoothA,smoothQTL(qRawA[splitVar==v],geneticMap[splitVar==v],W = W))
+        qSmoothB = c(qSmoothB,smoothQTL(qRawB[splitVar==v],geneticMap[splitVar==v],W = W)) 
       }
       res["qSmoothA"] = list(generateLen(qSmoothA,filteredOut))
       res["qSmoothB"] = list(generateLen(qSmoothB,filteredOut))
@@ -83,7 +112,7 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
     GsmoothB = NULL
     for(v in unique(splitVar))
     {
-      GsmoothB = c(GsmoothB,smoothQTL(G = GstatB[splitVar==v],Map = geneticMap[splitVar==v],Kern = "kern",W = W))
+      GsmoothB = c(GsmoothB,smoothQTL(G = GstatB[splitVar==v],Map = geneticMap[splitVar==v],W = W))
     }
     paramB = getPars(GsmoothB)
     pvalB = stats::plnorm(GsmoothB,meanlog = paramB[1],sdlog = paramB[2],lower.tail = F)
@@ -98,6 +127,16 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
   return(res)
 }
 
+
+#' Title Transform XQTL list to data frame
+#'
+#' @param res Results from the gqtl function
+#'
+#' @return
+#' Convenience function that simply converts the list returned by gqtl to data frame
+#' @export
+#'
+#' @examples
 gqtlDF = function(res)
 {
   df = with(res,data.frame(GstatA,GsmoothA,pvalA,GstatB,GsmoothB,pvalB,qSmoothA = qSmoothA,qSmoothB = qSmoothB))

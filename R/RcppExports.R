@@ -5,7 +5,25 @@ findInterval2 <- function(x, breaks) {
     .Call('_xQTLstats_findInterval2', PACKAGE = 'xQTLstats', x, breaks)
 }
 
-smoothQTL <- function(G, Map, Kern, W) {
-    .Call('_xQTLstats_smoothQTL', PACKAGE = 'xQTLstats', G, Map, Kern, W)
+#' Find interval implementation in armadillo
+#' 
+#' This takes the fast findInterval2 implementation from Hadley Wickham (http://adv-r.had.co.nz/Rcpp.html) and just replaces everything with RcppArmadillo objects. Since smoothQTL is implemented in armadillo this saves some conversions
+#' @param x the cutoff points to be found
+#' @param breaks the vector to look for.
+#' @export
+findIntervalArmadillo <- function(x, breaks) {
+    .Call('_xQTLstats_findIntervalArmadillo', PACKAGE = 'xQTLstats', x, breaks)
+}
+
+#' Calculate smoothed G statistic
+#' 
+#' This function implements the smoothing procedure outlined in Magwene et al 2011.
+#'
+#' @param G the G statistic
+#' @param Map the genetic map (see gqtl function)
+#' @param W the window size for the smoothing (see gqtl function)
+#' @export
+smoothQTL <- function(G, Map, W) {
+    .Call('_xQTLstats_smoothQTL', PACKAGE = 'xQTLstats', G, Map, W)
 }
 

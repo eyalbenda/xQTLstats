@@ -18,24 +18,36 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// findIntervalArmadillo
+arma::vec findIntervalArmadillo(arma::vec& x, arma::vec& breaks);
+RcppExport SEXP _xQTLstats_findIntervalArmadillo(SEXP xSEXP, SEXP breaksSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type breaks(breaksSEXP);
+    rcpp_result_gen = Rcpp::wrap(findIntervalArmadillo(x, breaks));
+    return rcpp_result_gen;
+END_RCPP
+}
 // smoothQTL
-NumericVector smoothQTL(arma::vec G, arma::vec Map, CharacterVector Kern, NumericVector W);
-RcppExport SEXP _xQTLstats_smoothQTL(SEXP GSEXP, SEXP MapSEXP, SEXP KernSEXP, SEXP WSEXP) {
+NumericVector smoothQTL(arma::vec G, arma::vec Map, NumericVector W);
+RcppExport SEXP _xQTLstats_smoothQTL(SEXP GSEXP, SEXP MapSEXP, SEXP WSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::vec >::type G(GSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type Map(MapSEXP);
-    Rcpp::traits::input_parameter< CharacterVector >::type Kern(KernSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type W(WSEXP);
-    rcpp_result_gen = Rcpp::wrap(smoothQTL(G, Map, Kern, W));
+    rcpp_result_gen = Rcpp::wrap(smoothQTL(G, Map, W));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_xQTLstats_findInterval2", (DL_FUNC) &_xQTLstats_findInterval2, 2},
-    {"_xQTLstats_smoothQTL", (DL_FUNC) &_xQTLstats_smoothQTL, 4},
+    {"_xQTLstats_findIntervalArmadillo", (DL_FUNC) &_xQTLstats_findIntervalArmadillo, 2},
+    {"_xQTLstats_smoothQTL", (DL_FUNC) &_xQTLstats_smoothQTL, 3},
     {NULL, NULL, 0}
 };
 

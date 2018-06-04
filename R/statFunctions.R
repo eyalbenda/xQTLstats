@@ -1,6 +1,16 @@
 #import robust
 #import stats
 
+#' Title get allele frequences for allele A
+#'
+#' @param n1 counts for allele A
+#' @param n3 counts for allele B
+#'
+#' @return
+#' Frequencies of allele A. Note, to prevent a catastrophe when calculating G statistic, frequencies of 1 and 0 are converted to 0.99 and 0.01.
+#' @export
+#'
+#' @examples
 getq = function(n1,n3)
 {
   q = n1/(n1+n3)
@@ -8,6 +18,21 @@ getq = function(n1,n3)
   q[q==0] = 0.01
   q
 }
+
+
+#' Title Calculate G statistic
+#'
+#' @param n2 Counts of allele A and group 1
+#' @param n4 Counts of allele B and group 1
+#' @param n1 Counts of allele A and group 2
+#' @param n3 Counts of allele B and group 2
+#' @param q The baseline allele frequencies. If no n1 and n3 are given, q is used to simulate allele counts using the same total counts as n2+n4.
+#'
+#' @return
+#' A vector of G statistic for each variant
+#' @export
+#'
+#' @examples
 Gstat = function(n2,n4,n1=NULL,n3=NULL,q=0.5)
 {
   if(is.null(n1))
@@ -30,10 +55,10 @@ Gstat = function(n2,n4,n1=NULL,n3=NULL,q=0.5)
 }
 
 
- 
-smoothQTLwrap = function(G,Map,Kern="kern",W=20)
+## Depracated wrapper for XQTL 
+smoothQTLwrap = function(G,Map,W=25)
 {
-  GsmoothRaw = smoothQTL(G = G[!is.na(G)],Map = Map[!is.na(G)],Kern = Kern,W = W)
+  GsmoothRaw = smoothQTL(G = G[!is.na(G)],Map = Map[!is.na(G)],W = W)
   if(any(is.na(G)))
   {
     Gsmoothed = rep(NA,length(G))
@@ -45,6 +70,19 @@ smoothQTLwrap = function(G,Map,Kern="kern",W=20)
   return(Gsmoothed)
 }
 #Your responsibility to run per chrom
+#' Title Depracated slow R version of the G statistic smoother. Can be useful to test kernels
+#'
+#' @param G Raw G statistic
+#' @param kern The Kernel function to be used. Should be a function that gets a single parameter (d - distance from variant) and returns the transformed distance.
+#' @param map The genetic map vector (see gqtl)
+#' @param W The window for smoothing (see gqtl)
+#'
+#'
+#' @return
+#' Vector of smoothed G values
+#' @export 
+#'
+#' @examples
 Gsmooth = function(G,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},map,W=25)
 {
   if(length(G)!=length(map))
@@ -71,6 +109,16 @@ Gsmooth = function(G,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},map,W=25)
   Gsmoothed
 }
 
+
+#' Title A robust fit for the log normal distribution. This is just a wrapper for the fitdstnRob function from robust.
+#'
+#' @param Gsmoothed Smoothed G statistics
+#'
+#' @return
+#' See fitdstnRob function in package robust. This function just returns the estimate (the fitted mean and sd).
+#' @export
+#'
+#' @examples
 getPars = function(Gsmoothed)
 {
   robust::fitdstnRob(Gsmoothed,"lognorm")$estimate
