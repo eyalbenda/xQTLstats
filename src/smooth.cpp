@@ -3,7 +3,12 @@
 
 
 using namespace Rcpp;
-
+//' Find interval
+//' 
+//' This takes the fast findInterval2 implementation from Hadley Wickham (http://adv-r.had.co.nz/Rcpp.html), so all credit to him
+//' @param x the cutoff points to be found
+//' @param breaks the vector to look for.
+//' @export
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::export]]
 IntegerVector findInterval2(NumericVector x, NumericVector breaks) {
@@ -50,6 +55,7 @@ arma::vec tricube(arma::vec D)
   arma::vec tricube = denom / sum(denom);
   return tricube;
 }
+
 //' Calculate smoothed G statistic
 //' 
 //' This function implements the smoothing procedure outlined in Magwene et al 2011.

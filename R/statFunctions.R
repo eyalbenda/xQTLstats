@@ -9,8 +9,6 @@
 #' @return
 #' Frequencies of allele A. Note, to prevent a catastrophe when calculating G statistic, frequencies of 1 and 0 are converted to 0.99 and 0.01.
 #' @export
-#'
-#' @examples
 getq = function(n1,n3)
 {
   q = n1/(n1+n3)
@@ -31,8 +29,6 @@ getq = function(n1,n3)
 #' @return
 #' A vector of G statistic for each variant
 #' @export
-#'
-#' @examples
 Gstat = function(n2,n4,n1=NULL,n3=NULL,q=0.5)
 {
   if(is.null(n1))
@@ -45,7 +41,6 @@ Gstat = function(n2,n4,n1=NULL,n3=NULL,q=0.5)
       stop("if n3 is specified, n1 must also be specified")
   if(is.null(n1))
   {
-    print("unspecified n1 and n3, simulating based on q")
     cov1 = n2 + n4
     n1 = cov1*q
     n3 = cov1*(1-q)
@@ -81,8 +76,6 @@ smoothQTLwrap = function(G,Map,W=25)
 #' @return
 #' Vector of smoothed G values
 #' @export 
-#'
-#' @examples
 Gsmooth = function(G,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},map,W=25)
 {
   if(length(G)!=length(map))
@@ -117,8 +110,6 @@ Gsmooth = function(G,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},map,W=25)
 #' @return
 #' See fitdstnRob function in package robust. This function just returns the estimate (the fitted mean and sd).
 #' @export
-#'
-#' @examples
 getPars = function(Gsmoothed)
 {
   robust::fitdstnRob(Gsmoothed,"lognorm")$estimate

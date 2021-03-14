@@ -1,6 +1,11 @@
 #import stats
 
-
+#' Title Internal funcion to turn values into NA based on filter
+#'
+#' @param vec vector
+#' @param filt filter vector (boolean)
+#' @return
+#' output with filtered values turned to NA. This function is basic, only convenience to avoid repeating code.
 generateLen = function(vec,filt)
 {
   if(length(vec)!=sum(!filt))
@@ -36,8 +41,6 @@ generateLen = function(vec,filt)
 #' geneticMap: The genetic map supplied to the function. This is returned for convenience/sanity check
 #' splitVar: The chromosome vector supplied to the function. This is returned for convenience/sanity check
 #' @export
-#'
-#' @examples
 gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = function(d){(1-d^3)^3 / sum((1-d^3)^3)},W=25,lim= 0.99)
 {
   if(length(geneticMap)!=length(splitVar))
@@ -135,8 +138,6 @@ gqtl = function(bulkA,bulkB = NULL,geneticMap,splitVar,getDistortion=T,kern = fu
 #' @return
 #' Convenience function that simply converts the list returned by gqtl to data frame
 #' @export
-#'
-#' @examples
 gqtlDF = function(res)
 {
   df = with(res,data.frame(GstatA,GsmoothA,pvalA,GstatB,GsmoothB,pvalB,qSmoothA = qSmoothA,qSmoothB = qSmoothB))

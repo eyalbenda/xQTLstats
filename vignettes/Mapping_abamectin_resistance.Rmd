@@ -1,0 +1,255 @@
+---
+title: "ceX-QTL Mapping resistance to Abamectin between N2 and CB4856"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Mapping_abamectin_resistance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+In this vignette, we will reproduce the mapping study of resistance to Abamectin, part of the [cex-QTL publication](https://www.biorxiv.org/content/10.1101/428870v1).
+
+### Preparations
+To do everything from scratch, we will make extensive use of software outside R. To make things easier, we will install [Anaconda](https://www.anaconda.com), a package manager which will make it easy to install all the software we need. Please see the website for installation instructions on your system.
+
+We'll next create a new conda environment which we'll call xQTLstats. Note, when you install Anaconda, it will add scripts which will need to be run before every call to external software. Depending on your shell version, they will be in ~/.bashrc, or (as in my case - I'm using z-shell) ~/.zshrc
+
+#### Software installation
+**Note: change the "source ~/.zshrc" to "~/.bashrc" if you're using bash (the default for Ubuntu and other linux versions)**
+```
+source ~/.zshrc && conda create --name xQTLstats bwa samtools bam-readcount parallel-fastq-dump sra-tools
+```
+#### R package installation and loading
+Now, let's install and attach the required R packages for the vignette:
+
+```
+install.packages("BiocManager")
+BiocManager::install(c("data.table","Gviz","GenomicFeatures","GenomicRanges","ggplot2","ggthemes","dplyr","viridis"))
+devtools::install_github("https://github.com/eyalbenda/bulkPop")
+install.packages(repos=NULL,system.file("extdata", "TxDb.Celegans.BioMart.ENSEMBLMARTENSEMBL.WBcel235.tar.gz", package = "xQTLstats"),type = "source")
+install.packages(repos=NULL,system.file("extdata", "BSgenome.Celegans.Ensembl.WBcel235.tar.gz", package = "xQTLstats"),type = "source")
+```
+
+```{r, include=F}
+require(xQTLstats)
+require(bulkPop)
+require(data.table)
+require(Gviz)
+require(TxDb.Celegans.BioMart.ENSEMBLMARTENSEMBL.WBcel235)
+require(BSgenome.Celegans.Ensembl.WBcel235)
+require(GenomicRanges)
+require(ggplot2)
+require(ggthemes)
+require(dplyr)
+require(viridis)
+```
+
+#### Defining macros for mapping
+
+We are going to be using the resources we made for the cex-QTL publication. You'll need to have comparable resources for analyzing other strains:
+
+* A list of single-nucleotide variants (SNVs). We used *bcbio* to identify SNVs in CB4856. We filtered the bcbio output to include only SNVs that are fully homozygous for CB4856 in the sequencing of the *fog-2* strain we were working with (QX2319). Finally, we made a bed file from the positions of the SNVs. You can open the file referenced by *N2CBsnplist* below for an example of the format.
+
+* A genetic map. Here, we will use the genetic map included already with the bulkPop package. The map there was created by Erik Andersen at Northwestern University (see [here](https://github.com/AndersenLab/N2xCB4856-RIAILS)).
+
+* A genome fasta, here it is the standard N2 reference from ensembl
+
+So let's define some macros for these, as well as for the conda environment you created (don't forget to replace .zshrc with .bashrc if needed)
+
+```{r include=T}
+cmd_prefix = "source ~/.zshrc && conda activate xqtlstats &&"
+N2CBsnplist = system.file("extdata", "N2snpsCBfin", package = "xQTLstats")
+reference = system.file("extdata", "Caenorhabditis_elegans.WBcel235.30.dna.genome.fa.gz", package = "xQTLstats")
+```
+
+#### Fetching sequencing files from the SRA
+
+We will fetch the seqencing for the Abamectin and control (change the threads parameter to the number of threads you have available)
+```
+system(sprintf("%s prefetch SRR8816428",cmd_prefix))
+system(sprintf("%s prefetch SRR8816429",cmd_prefix))
+system(sprintf("%s parallel-fastq-dump --threads 8 --gzip --split-files --sra-id SRR8816428",cmd_prefix))
+system(sprintf("%s parallel-fastq-dump --threads 8 --gzip --split-files --sra-id SRR8816429",cmd_prefix))
+```
+
+### Alignment and variant counting
+
+We will now align the fastq files we downloaded to the N2 reference genome and use bam-readcount to produce allele counts in SNVs.
+
+
+#### Build bwa reference
+```
+system(sprintf("%s bwa index %s",cmd_prefix,reference))
+```
+
+#### Mapping and allele counts
+We run *bwa mem*. We then use *fixmate*, *sort* and *markdup* from *samtools* to map, sort and remove duplicates, before counting alleles with *bam-readcount*. Note, I needed to upload the reference gzipped due to github space constraints, but we will unzip it for running bam-readcount and delete the deflated version afterwards.
+```
+curRef = reference
+system(sprintf("gunzip -c %s >curRef.fa",curRef))
+curSNPs = N2CBsnplist
+ref="N2"
+for(prefix in c("SRR8816429","SRR8816428"))
+{
+  read1 = file.path(sprintf("%s_1.fastq.gz",prefix))
+  read2 = file.path(sprintf("%s_2.fastq.gz",prefix))
+  curOutName = sprintf("%s.%s",prefix,ref)
+  system(sprintf("%s bwa mem -t 14 %s %s %s | samtools view -bS > %s.bam -",cmd_prefix,curRef,read1,read2,curOutName))
+  ### Can't use sambamba since support broke with mac OSX Catalina. We used Sambamba in the paper for sorting and removing duplicates
+  system(sprintf("%s samtools fixmate -@ 14 -m %s.bam %s.fixmate.bam",cmd_prefix,curOutName,curOutName))
+  system(sprintf("%s samtools sort -t 14 -o %s.sorted.bam %s.fixmate.bam",cmd_prefix,curOutName,curOutName))
+  system(sprintf("%s samtools markdup -r -@ 14 %s.sorted.bam %s.rmdup.bam",cmd_prefix,curOutName,curOutName))
+  system(sprintf("%s samtools index %s.rmdup.bam",cmd_prefix,curOutName))
+  system(sprintf("%s bam-readcount -w 10 -l %s -f curRef.fa ../%s.rmdup.bam > %s.variantCount",cmd_prefix,curSNPs,curOutName,curOutName))
+}
+rm("curRef.fa")
+rm("curRef.fai")
+```
+
+### Parsing cex-QTL mapping data and running xQTL stats
+
+#### Functions for parsing *bam-readcount* output
+Let's define a couple of functions we will use to parse bam-readcount output. The first function parses the count of the reference allele. The second computes the coverage.
+
+```{r include =T}
+referenceParse = function(bamCountFile,freqs=F)
+{
+  bamCountFile = as.matrix(bamCountFile)
+  orderNucs = c("a"=1,"c"=2,"g"=3,"t"=4)
+  countVec = NULL
+  intCols = apply(bamCountFile,1,function(x)x[5:8][orderNucs[tolower(x[3])]])
+  
+  countVec = as.numeric(sapply(strsplit(intCols,":"),function(x)x[2]))
+  
+  if(freqs)
+    countVec = countVec/as.numeric(bamCountFile[,4])
+  countVec
+}
+
+coverageParse = function(bamCountFile)
+{
+  bamCountFile = as.matrix(bamCountFile)
+  as.numeric(bamCountFile[,4])
+}
+```
+
+#### Read in the variant count files
+
+Initialize the data frames with the SNV list, and parse the variantCount files. Note that to allow the vignette to run, I've uploaded the variantCount files that are part of this vignette to the package repo. The commented line is what you could use to fetch the files if they were created locally using the commands above. 
+```{r include=T}
+N2snpsCB = read.table(N2CBsnplist)
+names(N2snpsCB) = c("chrom","pos_N2","pos_N2_2")
+variantInt = c(system.file("extdata", "SRR8816428.N2.variantCount", package = "xQTLstats"),
+               system.file("extdata", "SRR8816429.N2.variantCount", package = "xQTLstats"))
+#variantInt = dir(path="",pattern="variantCount",full.names = T)
+N2CBFreqs = N2CBCov = N2snpsCB
+```
+
+#### Read in variantCount files
+```{r include=T,warning=F,message=F}
+for(cur in variantInt)
+{
+  if(grepl("SRR8816428",cur))
+    curName = "Abamectin"
+  else
+  {
+    curName = "Control"
+  }
+  print(sprintf("working on %s",curName))
+  curFile = cur
+  curFreqs = data.frame(fread(sprintf("cut -f1,2,3,4,6,7,8,9 %s",sprintf(cur))))
+  curTitle = curName
+  N2CBFreqs[curTitle] = referenceParse(curFreqs,freqs = F)[match(paste(N2CBFreqs[,1],N2CBFreqs[,2]),
+                                                                 paste(curFreqs[,1],curFreqs[,2]))]
+  N2CBCov[curTitle] = coverageParse(curFreqs)[match(paste(N2CBFreqs[,1],N2CBFreqs[,2]),
+                                                    paste(curFreqs[,1],curFreqs[,2]))]
+}
+```
+
+#### Running xQTLstats
+
+We can now run xQTLstats. First, we will remove the mitochondria (it's not represented in our genetic map, we don't currently support it). We will also remove any SNV that has an "NA". In our case, those are only 4 SNVs with missing data. This is because the sequencing depth in this experiment is very high (~200). There will often be many SNVs without coverage. That is fine.
+
+```{r include =T}
+N2CBFreqs = N2CBFreqs[N2CBFreqs$chrom!="MtDNA",]
+N2CBCov = N2CBCov[N2CBCov$chrom!="MtDNA",]
+filt = apply(N2CBFreqs,1,function(x)any(is.na(x)))
+sum(filt)
+N2CBFreqs = N2CBFreqs[!filt,]
+N2CBCov = N2CBCov[!filt,]
+```
+
+Next, we'll match the genetic map with the SNV list we have. This is done with simple coordinate-based interpolation and it is already implemented in the *bulkPop* package
+
+```{r}
+genomeSNPs = expandGenomeToVariantlist(N2xCB4856.genome,variantChrom = as.character(N2CBFreqs$chrom),variantPos = N2CBFreqs$pos_N2,matchNames = T)
+```
+We're now ready to run xQTLstats
+```{r}
+bulkA = cbind(N2CBFreqs$Control,N2CBCov$Control-N2CBFreqs$Control)
+bulkB = cbind(N2CBFreqs$Abamectin,N2CBCov$Abamectin-N2CBFreqs$Abamectin)
+Aba= gqtl(bulkA,bulkB,genomeSNPs$map,genomeSNPs$markerChrom,getDistortion = T)
+AbaDF = gqtlDF(Aba)
+
+AbaDF$LOD = qchisq(AbaDF$pvalB, 1, lower.tail=F)/(2*log(10))
+AbaDF = data.frame(AbaDF,chrom=genomeSNPs$markerChrom,pos=genomeSNPs$markerPos)
+
+```
+
+
+A couple of simple plots of the mapping result. Note the location of the peak on Chromosome V in relation to the vertical line marking the position of *glc-1*
+
+```{r, dpi=100,fig.width=6, fig.height=4}
+glc1=(16219634+16221917)/2
+
+
+ggplot(AbaDF,aes(x=pos,y=-log10(pvalB),color=chrom)) + geom_line() + facet_grid(~genomeSNPs$markerChrom) + 
+  theme_base() +  geom_line() + 
+  scale_color_viridis(discrete=T) + labs(y=expression("-"*log[10]*p))+
+  geom_vline(data = data.frame(xintercept=glc1,chrom="V"),aes(xintercept=xintercept),linetype=3,size=0.5,alpha=0.7) +
+  xlab("Physical Position (mb)") + theme(plot.background = element_blank()) +
+  facet_grid(~chrom,scales = "free_x",space="free_x")  +
+  scale_x_continuous(breaks = c(5e6,1e7,1.5e7,2e7),labels = function(x)x/1e6) + theme(legend.position = "none")
+
+
+ggplot(AbaDF %>% filter(chrom=="V"),aes(x=pos,y=-log10(pvalB),color=chrom)) + geom_line() + facet_grid(~genomeSNPs$markerChrom) + 
+  theme_base() +  geom_line() + 
+  scale_color_viridis(discrete=T,begin = 0.8) + labs(y=expression("-"*log[10]*p))+
+  xlab("Physical Position (mb)") + theme(plot.background = element_blank()) +
+  facet_grid(~chrom,scales = "free_x",space="free_x")  + geom_vline(xintercept = glc1,linetype=3,alpha=0.7)+
+  scale_x_continuous(breaks = c(5e6,1e7,1.5e7,2e7),labels = function(x)x/1e6) + theme(legend.position = "none")
+```
+
+
+Finally, we can recreate the visualization we use in the paper made with Gviz. I don't fully describe these steps, please refer to the Gviz package instructions. The final plot isn't exactly the same as the paper, since there are placeholder axes we removed manually for the publication.
+
+```{r,include=T, fig.width=6, fig.height=4}
+options(ucscChromosomeNames=FALSE)
+strack = SequenceTrack(BSgenome.Celegans.Ensembl.WBcel235,chromosome="V")
+startPos = 16088828
+endPos = 16302409
+
+## Use the confidence interval we separately calculated using simulations.
+
+itrack = IdeogramTrack(chromosome="chrV",genome = "ce11")
+itrack@dp@pars$fontcolor = "black"
+itrack@chromosome = "V"
+itrack@name = "V"
+itrack@bandTable[,1]=gsub("chr","",itrack@bandTable[,1])
+gtrack = GenomeAxisTrack(littleTicks=F,add53=T,add35=T,col="black",col.id="black",fontcolor="black")
+options(ucscChromosomeNames = F)
+genes = BiomartGeneRegionTrack(genome ="ce11",chromosome="V",start = startPos,end=endPos,fontface=2,rRNA_pseudogene=viridis::viridis_pal()(3)[2],pseudogene = viridis::viridis_pal()(3)[1], transcriptAnnotation="symbol",name = "",background.title = "white",fontcolor.title = "#494949",col.axis="#494949",collapseTranscripts="longest",cex.group=0.7)
+genes@chromosome = "V"
+genes@range = genes@range[start(genes@range)>16120000]
+# genes@range = genes@range[which(genes@range$symbol!=genes@range$transcript)]
+seqlevels(genes@range) = unique(gsub("chrV","V",as.character(genes@range@seqnames)))
+seqnames(genes@range) = gsub("chrV","V",as.character(genes@range@seqnames))
+genes@range = genes@range[genes@range$feature %in% c("protein_coding")]
+genes@range$feature[genes@range$symbol=="glc-1"]="rRNA_pseudogene"
+regInAbaDF = AbaDF$chrom=="V"&AbaDF$pos>startPos&AbaDF$pos<endPos
+GsmoothTrack= DataTrack(range=with(AbaDF[regInAbaDF,],GRanges(seqnames=chrom,IRanges(start=pos,end=pos))),data=-log10(AbaDF$pvalB[regInAbaDF]),genome ="ce11",chromosome="III",background.title = "white",fontcolor.title = "#494949",col.axis="#494949",type=c("smooth","p"),col="#7AD151FF",name = "1",cex.title=0.8,lwd=4,alpha=1,ylab="")
+
+
+plotTracks(list(strack,gtrack,GsmoothTrack,genes),from=startPos,to=endPos,sizes=c(0.001,0.1,0.2,0.3))
+
+```
