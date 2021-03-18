@@ -9,4 +9,4 @@ It implements the statistical method for bulk segregant analysis described in Ma
 
 ### Quick start
 
-For a comprehensive example of using xQTLstats to reproduce our mapping for Abamectin resistance, starting all the way from the sequencing fastq's on the SRA and up to the published plots, check out our [vignette](https://rpubs.com/eyalbd/738801) 
+For a comprehensive example of using xQTLstats to reproduce our mapping for Abamectin resistance, starting all the way from the sequencing fastq's on the SRA and up to the published plots, check out our [vignette](https://rpubs.com/eyalbd/738820)
